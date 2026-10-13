@@ -7,7 +7,7 @@ paths:
     get:
       operationId: listRefunds
       summary: List refunds
-      description: Returns refunds newest first, filtered by payment or status, 20 per page by default.
+      description: Returns refunds newest first, filtered by payment, status or reason, 20 per page by default and at most 50.
       parameters:
         - name: payment_id
           in: query
@@ -18,12 +18,18 @@ paths:
           schema:
             type: string
             enum: [pending, succeeded, failed, cancelled]
+        - name: reason
+          in: query
+          description: Only refunds issued for this reason.
+          schema:
+            type: string
+            enum: [duplicate, fraudulent, requested_by_customer]
         - name: limit
           in: query
           schema:
             type: integer
             minimum: 1
-            maximum: 100
+            maximum: 50
             default: 20
         - name: starting_after
           in: query
