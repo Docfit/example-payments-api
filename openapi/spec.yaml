@@ -1,0 +1,155 @@
+openapi: 3.0.3
+info:
+  title: Payments API
+  version: "2.0"
+paths:
+  /v2/refunds:
+    get:
+      operationId: listRefunds
+      summary: List refunds
+      description: Returns refunds newest first, filtered by payment or status, 20 per page by default.
+      parameters:
+        - name: payment_id
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, succeeded, failed, cancelled]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: starting_after
+          in: query
+          description: Cursor; the id of the last refund on the previous page.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: A page of refunds
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefundList"
+    post:
+      operationId: createRefund
+      summary: Create a refund
+      description: Refunds all or part of a payment.
+      parameters:
+        - name: expand
+          in: query
+          required: false
+          description: Related objects to embed in the response. `payment` returns the refunded payment object instead of only `payment_id`.
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [payment]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRefundRequest"
+      responses:
+        "201":
+          description: Refund created
+  /v2/refunds/{id}:
+    get:
+      operationId: getRefund
+      summary: Retrieve a refund
+      description: Returns a refund by id, including its status and failure reason when it failed.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The refund
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Refund"
+  /v2/refunds/{id}/cancel:
+    post:
+      operationId: cancelRefund
+      summary: Cancel a pending refund
+      description: Cancels a refund that is still pending. The refund moves to status cancelled and a refund.cancelled webhook is sent.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The cancelled refund
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Refund"
+        "409":
+          description: The refund is no longer pending (error code refund_not_cancellable)
+components:
+  schemas:
+    RefundList:
+      type: object
+      required: [data, has_more]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Refund"
+        has_more:
+          type: boolean
+          description: True when another page exists.
+    Refund:
+      type: object
+      required: [id, payment_id, amount, status, created_at]
+      properties:
+        id:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+          description: When the refund was created. RFC 3339 in UTC with millisecond precision, e.g. 2026-10-04T09:30:00.000Z.
+        payment_id:
+          type: string
+        amount:
+          type: integer
+        status:
+          type: string
+          enum: [pending, succeeded, failed, cancelled]
+        failure_reason:
+          type: string
+          enum: [insufficient_funds, card_closed, expired]
+          description: Present when status is failed.
+    CreateRefundRequest:
+      type: object
+      required: [payment_id, amount]
+      properties:
+        payment_id:
+          type: string
+          description: The payment to refund.
+        amount:
+          type: integer
+          description: Amount in minor units.
+        reason:
+          type: string
+          enum: [duplicate, fraudulent, requested_by_customer]
+          description: Why the refund is issued.
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+            maxLength: 500
+          maxProperties: 20
+          description: Up to 20 string key-value pairs stored with the refund and returned on every read.
